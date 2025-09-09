@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="data:image/gif;base64,R0lGODlhEAAQAIABAP8AAP///yH5BAEAAAEALAAAAAAQABAAAAIgjI+py+0PTgygTolpNvN6FF1alZBeB2bf1lnPC8fybBQAOw==" type="image/gif">
+  <title>批量图片压缩器</title>
+  <style>
+    :root {
+      --bg-light: #fff;
+      --text-light: #000;
+      --bg-dark: #121212;
+      --text-dark: #f0f0f0;
+      --primary-color: #007bff;
+      --primary-hover: #0069d9;
+      --border: #ccc;
+      --border-dark: #444;
+    }
+
+    html[data-theme='dark'] { background-color: var(--bg-dark); color: var(--text-dark); }
+    html[data-theme='light'] { background-color: var(--bg-light); color: var(--text-light); }
+
+    body { font-family: sans-serif; padding: 2em; max-width: 1440px; margin: auto; transition: background .3s, color .3s; }
+
+    #dropZone { border: 2px dashed var(--border); padding: 1.5em; text-align: center; margin: 1em 0; border-radius: 10px; background: #f9f9f9; cursor: pointer; transition: background-color .3s, border-color .3s; }
+    html[data-theme='dark'] #dropZone { background: #1f1f1f; border-color: var(--border-dark); }
+    #dropZone.dragover, #dropZone:hover { background-color: #e0f7ff; border-color: var(--primary-color); }
+    html[data-theme='dark'] #dropZone.dragover, html[data-theme='dark'] #dropZone:hover { background-color: #2a3a4a; border-color: var(--primary-color); }
+
+    .toolbar { display: flex; gap: .75em; align-items: center; flex-wrap: wrap; }
+    .toolbar button, .toolbar input[type="number"], .toolbar label { font-size: 14px; }
+    .btn { padding: .6em 1em; border: 1px solid var(--border); border-radius: 8px; background: transparent; cursor: pointer; }
+    .btn.primary { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+    .btn.primary:hover { background: var(--primary-hover); }
+    .btn.warning { background: #f44336; color: #fff; border-color: #f44336; }
+    .btn.warning:hover { background: #e53935; }
+
+    #themeToggle { background: none; border: none; font-size: 1.2em; cursor: pointer; color: inherit; }
+
+    .input-group { display: flex; align-items: center; gap: .5em; }
+    .input-group input[type="number"] { width: 7em; padding: .45em; border: 1px solid var(--border); border-radius: 6px; }
+    html[data-theme='dark'] .input-group input[type="number"] { background: #2a2a2a; border-color: var(--border-dark); color: var(--text-dark); }
+
+    .log { margin-top: 1em; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    html[data-theme='dark'] .log { border-color: var(--border-dark); }
+    .log-header { padding: .7em 1em; font-weight: bold; background: rgba(0,0,0,.05); }
+    html[data-theme='dark'] .log-header { background: rgba(255,255,255,.06); }
+    .log-body { overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; max-height: 50vh; }
+    .log-row { display: grid; grid-template-columns: 2fr .6fr .6fr .6fr 1.5fr; gap: .5em; padding: .6em 1em; border-top: 1px dashed var(--border); align-items: center; word-break: break-all; }
+    html[data-theme='dark'] .log-row { border-color: var(--border-dark); }
+    .log-row.header { font-weight: 600; position: sticky; top: 0; background: inherit; border-top: none; }
+    .badge { padding: .15em .5em; border-radius: 999px; font-weight: 700; font-size: 12px; display: inline-block; }
+    .ok { background: #e7f8ec; color: #0a7a32; }
+    .skip { background: #fff6e5; color: #915e00; }
+    .err { background: #ffe8e6; color: #982222; }
+
+    .file-link { color: inherit; text-decoration: underline dotted; cursor: zoom-in; }
+
+    /* 结果预览小图（跟随鼠标） */
+    #imgPreview {
+      position: fixed;
+      top: 0; left: 0;
+      transform: translate(-9999px, -9999px);
+      background: var(--bg-light);
+      border-radius: 8px;
+      padding: 6px;
+      z-index: 1500;
+      pointer-events: none;
+      box-shadow: 0 4px 18px rgba(0,0,0,.15);
+    }
+    html[data-theme='dark'] #imgPreview {
+      background: var(--bg-dark);
+      border: 1px solid var(--primary-color);
+    }
+    #imgPreview img { max-width: 180px; max-height: 180px; display: block; }
+
+/* 大图弹窗 */
+.image-modal-overlay {
+  position: fixed; 
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center; 
+  justify-content: center;
+  z-index: 2000;
+  /* 初始状态：完全透明且不可见 */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .3s ease, visibility .3s ease;
+}
+
+/* 当添加 .show 类时，弹窗变得可见且不透明 */
+.image-modal-overlay.show { 
+  opacity: 1; 
+  visibility: visible; 
+}
+
+.image-modal {
+  background: var(--bg-light);
+  border-radius: 12px;
+  padding: 12px;
+  max-width: 90vw;
+  max-height: 90vh;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  /* 默认的边框样式，使用通用边框颜色 */
+  border: 1px solid var(--border);
+}
+
+html[data-theme='dark'] .image-modal {
+  /* 深色模式下的背景色和边框色 */
+  background: #222;
+  border-color: var(--primary-color);
+}
+    .image-modal img { max-width: 86vw; max-height: 80vh; display: block; border-radius: 8px; }
+    .image-modal .modal-bar { display:flex; align-items:center; justify-content:space-between; gap:1em; margin-bottom:8px; }
+    .image-modal .modal-bar .name { font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70vw; }
+    .image-modal .close { border:none; background:transparent; font-size:22px; cursor:pointer; line-height:1; color: inherit; }
+
+    /* 自定义确认弹窗（保留原有样式） */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 2000; opacity: 0; transition: opacity .2s ease-in-out;
+    }
+    .modal-overlay.show { display: flex; opacity: 1; }
+    .modal-content {
+      background: var(--bg-light);
+      padding: 2em; border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      max-width: 450px; width: 90%; text-align: center;
+      transform: scale(0.95); transition: transform .2s ease-in-out;
+    }
+    .modal-overlay.show .modal-content { transform: scale(1); }
+    html[data-theme='dark'] .modal-content { background: #282828; }
+    .modal-content p { margin: 0 0 1.5em; font-size: 16px; line-height: 1.6; white-space: pre-wrap; }
+    .modal-buttons { display: flex; gap: 1em; justify-content: center; }
+
+    .toast {
+      position: fixed; top: 20px; left: 50%;
+      transform: translateX(-50%) translateY(-10px);
+      background: #333; color: #fff;
+      padding: 12px 16px; border-radius: 8px;
+      z-index: 1000; opacity: 0; pointer-events: none;
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+    @keyframes fadeInDown { from{opacity:0; transform:translate(-50%,-10px);} to{opacity:1; transform:translate(-50%,0);} }
+    .toast.show { animation: fadeInDown .25s; }
+    .toast.hide { opacity:0; transform:translate(-50%,-10px); }
+  </style>
+</head>
+<body>
+  <header style="display:flex;align-items:center;justify-content:space-between;gap:1em;flex-wrap:wrap;">
+    <h2>📦 图片压缩器</h2>
+    <button id="themeToggle" title="深浅色切换">🌓</button>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn primary" id="chooseDirBtn" style="display:none;">选择文件夹并压缩</button>
+
+    <label class="input-group" style="gap:.4em">
+      <input type="checkbox" id="forceUseDefault" /> 手动设置
+    </label>
+    <div id="defaultSizeGroup" class="input-group" style="display:none">
+      <label for="defaultSizeInput">目标（KB）：</label>
+      <input type="number" id="defaultSizeInput" value="160" min="1" />
+    </div>
+
+    <div class="input-group">
+      <span>快速目标：</span>
+      <button class="btn primary" data-preset="300">300KB</button>
+      <button class="btn primary" data-preset="500">500KB</button>
+      <button class="btn primary" data-preset="1000">1000KB</button>
+    </div>
+
+    <label class="input-group" style="gap:.4em">
+      <input type="checkbox" id="pngToJpgCheckbox" /> PNG优先转为高质量JPG再压缩
+    </label>
+
+    <label class="input-group" style="gap:.4em">
+      <input type="checkbox" id="removeParamCheckbox" /> 删除文件名中的参数
+    </label>
+  </div>
+
+  <p style="margin:.6em 0 .2em">拖入 <strong>文件或文件夹</strong> 开始。文件名可包含大小参数，如 <code>xxx-160KB.jpg</code>。</p>
+  <div id="dropZone">📂 点击上传图片或将 <strong>文件夹</strong> 拖拽到此区域</div>
+  <input type="file" id="fileInput" accept="image/*" multiple style="display:none" />
+
+  <section class="log">
+    <div class="log-header">处理日志</div>
+    <div class="log-body" id="logBody"></div>
+  </section>
+
+  <div id="imgPreview"><img alt=""></div>
+
+  <div class="image-modal-overlay" id="imgModal">
+    <div class="image-modal">
+      <div class="modal-bar">
+        <div class="name" id="imgModalName"></div>
+        <button class="close" id="imgModalClose" title="关闭">✕</button>
+      </div>
+      <img id="imgModalImg" alt="">
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <script>
+    const APP_VERSION = '1.2.0';
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const chooseDirBtn = document.getElementById('chooseDirBtn');
+    const defaultSizeInput = document.getElementById('defaultSizeInput');
+    const forceUseDefault = document.getElementById('forceUseDefault');
+    const defaultSizeGroup = document.getElementById('defaultSizeGroup');
+    const themeToggle = document.getElementById('themeToggle');
+    const removeParamCheckbox = document.getElementById('removeParamCheckbox');
+    const pngToJpgCheckbox = document.getElementById('pngToJpgCheckbox');
+    const logBody = document.getElementById('logBody');
+    const toast = document.getElementById('toast');
+    const imgPreview = document.getElementById('imgPreview');
+    const imgPreviewImg = imgPreview.querySelector('img');
+    const imgModal = document.getElementById('imgModal');
+    const imgModalImg = document.getElementById('imgModalImg');
+    const imgModalName = document.getElementById('imgModalName');
+    const imgModalClose = document.getElementById('imgModalClose');
+
+    const zip = new JSZip();
+
+    // 用于管理预览URL，避免内存泄漏
+    let currentPreviewURLs = [];
+    function resetLog() {
+      // 回收旧的 objectURL
+      currentPreviewURLs.forEach(url => URL.revokeObjectURL(url));
+      currentPreviewURLs = [];
+      // 重置日志，仅有表头（修复“表头重复在底部”的问题）
+      logBody.innerHTML = `
+        <div class="log-row header">
+          <div>文件</div><div>原大小</div><div>目标</div><div>结果</div><div>说明</div>
+        </div>`;
+    }
+    resetLog();
+
+    // 兼容性检查 + 显示/隐藏按钮
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!('showDirectoryPicker' in window)) {
+        const modalText = document.getElementById('modalText');
+        modalText.textContent = '⚠️当前浏览器不支持文件直接修改⚠️\n✅️将使用文件拖拽打包为ZIP下载✅️\n推荐使用Chrome/Edge浏览器。';
+        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+        const modalCancelBtn = document.getElementById('modalCancelBtn');
+        modalConfirmBtn.style = 'display:none';
+        modalCancelBtn.textContent = '继续使用打包模式处理图片';
+        const modal = document.getElementById('modalOverlay');
+        modal.classList.add('show');
+        modalCancelBtn.addEventListener('click', () => modal.classList.remove('show'));
+      } else {
+        // chooseDirBtn.style.display = 'inline-block'; // 如需启用目录写回，可放开
+      }
+    });
+
+    function showToast(msg, ms = 5000){
+      toast.textContent = msg;
+      toast.classList.add('show');
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      setTimeout(()=>{
+        toast.classList.remove('show');
+        toast.style.transform = 'translateX(-50%) translateY(-10px)';
+      }, ms);
+    }
+
+    // 自定义确认弹窗
+    function showCustomConfirm(message) {
+      return new Promise(resolve => {
+        const overlay = document.getElementById('modalOverlay');
+        const textEl = document.getElementById('modalText');
+        const confirmBtn = document.getElementById('modalConfirmBtn');
+        const cancelBtn = document.getElementById('modalCancelBtn');
+
+        textEl.textContent = message;
+        overlay.classList.add('show');
+
+        const cleanup = () => {
+          overlay.classList.remove('show');
+          confirmBtn.replaceWith(confirmBtn.cloneNode(true));
+          cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+        };
+
+        document.getElementById('modalConfirmBtn').addEventListener('click', () => { cleanup(); resolve(true); });
+        document.getElementById('modalCancelBtn').addEventListener('click', () => { cleanup(); resolve(false); });
+      });
+    }
+
+    function updateDefaultSizeVisibility(){ defaultSizeGroup.style.display = forceUseDefault.checked ? 'flex' : 'none'; }
+    forceUseDefault.addEventListener('change', updateDefaultSizeVisibility);
+    updateDefaultSizeVisibility();
+
+    // 预设按钮
+    document.querySelectorAll('[data-preset]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        forceUseDefault.checked = true;
+        updateDefaultSizeVisibility();
+        defaultSizeInput.value = btn.dataset.preset;
+        showToast(`已设置目标为 ${btn.dataset.preset}KB，并启用手动设置`);
+      });
+    });
+
+    function formatKB(n){ return (n/1000).toFixed(1) + 'KB'; } // 1000 进制
+    function ext(name){ return name.split('.').pop().toLowerCase(); }
+    function isImageName(name){ return /\.(jpe?g|png|webp)$/i.test(name); }
+    function getTargetSizeFromName(name){
+      const fallback = parseInt(defaultSizeInput.value);
+      const force = forceUseDefault.checked;
+      if (force) return Math.max(1, fallback) * 1000;
+      const m = name.match(/-(\d+)KB/i);
+      if (m) return parseInt(m[1]) * 1000;
+      return Math.max(1, fallback) * 1000;
+    }
+    function getCleanFileName(name){ return name.replace(/-\d+KB(?=\.[^.]+$)/i, ''); }
+    function replaceExt(name, newExt){ return name.replace(/\.[^.]+$/, '.'+newExt); }
+    function getOutputFileName(origName, outExt){
+      let base = removeParamCheckbox.checked ? getCleanFileName(origName) : origName;
+      return replaceExt(base, outExt);
+    }
+
+    function row(status, filePath, orig, target, result, note, previewURL, previewName){
+      const div = document.createElement('div'); div.className = 'log-row';
+      const badge = `<span class="badge ${status}">${status.toUpperCase()}</span>`;
+      const nameHTML = previewURL
+        ? `<a href="#" class="file-link" data-url="${previewURL}" data-name="${previewName||filePath}">${filePath}</a>`
+        : `<span>${filePath}</span>`;
+      div.innerHTML = `<div>${nameHTML}</div><div>${formatKB(orig)}</div><div>${formatKB(target)}</div><div>${formatKB(result)} ${badge}</div><div>${note||''}</div>`;
+      logBody.appendChild(div);
+      logBody.scrollTop = logBody.scrollHeight;
+    }
+
+    function dataURLToBlob(dataURL){
+      const [header, base64] = dataURL.split(',');
+      const mime = header.match(/:(.*?);/)[1];
+      const binary = atob(base64);
+      const array = Uint8Array.from(binary, c => c.charCodeAt(0));
+      return new Blob([array], { type: mime });
+    }
+
+// 辅助函数：将 data URL 转换为 Blob
+function dataURLToBlob(dataurl) {
+  const arr = dataurl.split(',');
+  const mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+// 辅助函数：获取文件扩展名
+function getFileExtension(filename) {
+  return filename.split('.').pop().toLowerCase();
+}
+
+/**
+ * 使用二分法将图像压缩到目标大小。
+ * @param {File} file 要压缩的图像文件。
+ * @param {number} targetSize 目标大小，单位为字节。
+ * @param {object} [options] 可选设置。
+ * @param {boolean} [options.pngToJpg=false] 是否将 PNG 转换为 JPG。
+ * @returns {Promise<{blob: Blob, outExt: string}>} 一个 Promise，解析为压缩后的 Blob 及其扩展名。
+ */
+async function compressImageToTarget(file, targetSize, options = {}) {
+  const { pngToJpg = false } = options;
+  const img = new Image();
+  const reader = new FileReader();
+
+  reader.readAsDataURL(file);
+  await new Promise(res => {
+    reader.onload = () => {
+      img.src = reader.result;
+      img.onload = res;
+    };
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  const inExt = getFileExtension(file.name);
+  let outMime = 'image/jpeg';
+  let outExt = 'jpg';
+
+  if (inExt === 'webp') {
+    outMime = 'image/webp';
+    outExt = 'webp';
+  }
+  if (inExt === 'png' && !pngToJpg) {
+    outMime = 'image/png';
+    outExt = 'png';
+  }
+
+  // 如果输出格式为 PNG，则无法使用质量参数进行压缩。
+  // 我们将直接返回重新编码的图像。
+  if (outMime === 'image/png') {
+    const dataUrl = canvas.toDataURL('image/png');
+    const blob = dataURLToBlob(dataUrl);
+    return {
+      blob,
+      outExt
+    };
+  }
+
+  // 对 JPG/WEBP 压缩使用二分法
+  let low = 0.0;
+  let high = 1.0;
+  let bestBlob = null;
+  let bestDiff = Infinity;
+
+  // 二分法搜索逻辑现在最多运行 10 次。
+  for (let i = 0; i < 10; i++) {
+    const q = (low + high) / 2;
+    const dataUrl = canvas.toDataURL(outMime, q);
+    const blob = dataURLToBlob(dataUrl);
+    const size = blob.size;
+
+    // 我们寻找小于或等于目标大小的尺寸。
+    if (size <= targetSize) {
+      bestBlob = blob;
+      low = q;
+
+      // 检查提前退出条件
+      if (Math.abs(size - targetSize) <= targetSize * 0.1) {
+        break; // 如果大小在目标值的 10% 以内，则提前退出
+      }
+    } else {
+      high = q;
+    }
+
+    // 始终记录目前找到的最接近的 blob，以防我们超出目标
+    const diff = Math.abs(size - targetSize);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestBlob = blob;
+    }
+  }
+
+  // 最终检查，确保我们返回的是小于等于目标大小的最佳结果。
+  // 我们使用 "low" 值再循环一次，以确保得到的结果
+  // 小于或等于目标大小（如果找到了一个）。
+  if (bestBlob && bestBlob.size > targetSize) {
+    const finalDataUrl = canvas.toDataURL(outMime, low);
+    const finalBlob = dataURLToBlob(finalDataUrl);
+    if (finalBlob.size <= targetSize) {
+      return { blob: finalBlob, outExt };
+    }
+  }
+
+  return {
+    blob: bestBlob,
+    outExt
+  };
+}
+
+
+    // 统计目录内图片数量
+    async function countImageFiles(dirHandle) {
+      let count = 0;
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file' && isImageName(entry.name)) {
+          count++;
+        } else if (entry.kind === 'directory') {
+          count += await countImageFiles(entry);
+        }
+      }
+      return count;
+    }
+
+    function createZipAndDownload(name){ zip.generateAsync({type:'blob'}).then(b => saveAs(b, name)); }
+
+async function processFileLike(readFile, writeBack, displayPath){
+      const {file, name} = await readFile();
+      if (!isImageName(name)) return;
+
+      const target = getTargetSizeFromName(name);
+      const pngToJpg = pngToJpgCheckbox.checked;
+      const fileExt = ext(name);
+
+      // 预览（默认用原文件，若之后有压缩会替换为新blob）
+      let previewURL = URL.createObjectURL(file);
+      currentPreviewURLs.push(previewURL);
+      let outName = name;
+      let compressed, outExt, noteParts;
+
+      // 新增逻辑: 如果是PNG且勾选了转JPG，无视大小直接压缩
+      if (fileExt === 'png' && pngToJpg) {
+        // 直接执行压缩和转换
+        ({ blob: compressed, outExt } = await compressImageToTarget(file, target, { pngToJpg }));
+        noteParts = [`扩展名 ${fileExt}→${outExt}`];
+      } else if (file.size <= target && !removeParamCheckbox.checked) {
+        // 如果原始文件小于目标且不需要改名，则直接跳过
+        row('skip', displayPath, file.size, target, file.size, '原始文件小于目标，跳过', previewURL, name);
+        return;
+      } else {
+        // 否则，尝试压缩
+        ({ blob: compressed, outExt } = await compressImageToTarget(file, target, { pngToJpg }));
+        noteParts = [];
+      }
+
+      // 处理文件名修改的情况
+      if (!compressed || compressed.size >= file.size) {
+        // 如果压缩失败或结果更大，则仅修改文件名（如果勾选了）
+        if (removeParamCheckbox.checked) {
+          const finalName = getOutputFileName(name, fileExt);
+          outName = finalName;
+          await writeBack(file, finalName);
+          row('skip', displayPath, file.size, target, file.size, '未压缩，仅修改文件名', previewURL, finalName);
+        } else {
+          // 否则，跳过处理
+          row('skip', displayPath, file.size, target, file.size, '压缩后更大，跳过', previewURL, name);
+        }
+        return;
+      }
+
+      // 正常写回（压缩成功）
+      const finalName = getOutputFileName(name, outExt);
+      outName = finalName;
+
+      const resultURL = URL.createObjectURL(compressed);
+      currentPreviewURLs.push(resultURL);
+      previewURL = resultURL;
+
+      await writeBack(compressed, finalName);
+
+      noteParts.push(compressed.size > target ? '已减小但未达目标' : `压缩率 ${(100*(1 - compressed.size/file.size)).toFixed(1)}%`);
+      row('ok', displayPath, file.size, target, compressed.size, noteParts.join('；'), previewURL, finalName);
+    }
+
+    // 目录模式（覆盖保存 + 可重命名/改后缀）
+    async function chooseAndProcessDirectory(handle){
+      try{
+        if (!handle){
+          if (!window.showDirectoryPicker){
+            alert('当前浏览器不支持目录访问，请使用 Chrome/Edge 或改用拖拽文件压缩为 ZIP 下载。');
+            return;
+          }
+          handle = await showDirectoryPicker();
+        }
+
+        const imageCount = await countImageFiles(handle);
+        if (imageCount === 0) { showToast('文件夹中没有找到可处理的图片。'); return; }
+
+        const ok = imageCount >= 50
+          ? await showCustomConfirm(`🚨🚨🚨 注意！🚨🚨🚨\n您已提交 ${imageCount} 张图片，即将覆盖处理，是否继续？`)
+          : await showCustomConfirm(`是否批量处理此文件夹中的 ${imageCount} 张图片？\n将递归处理并覆盖保存。`);
+        if (!ok) return;
+
+        resetLog();
+
+        async function walk(dirHandle, prefix=''){
+          for await (const [name, entry] of dirHandle.entries()){
+            const path = prefix ? `${prefix}/${name}` : name;
+            if (entry.kind === 'file'){
+              await processFileLike(
+                async () => ({ file: await entry.getFile(), name }),
+                async (blob, suggestedName) => {
+                  const intendedName = suggestedName || (removeParamCheckbox.checked ? getCleanFileName(name) : name);
+                  if (intendedName !== name){
+                    const newHandle = await dirHandle.getFileHandle(intendedName, { create: true });
+                    const w = await newHandle.createWritable(); await w.write(blob); await w.close();
+                    try { await dirHandle.removeEntry(name); } catch(e){}
+                  } else {
+                    const w = await entry.createWritable(); await w.write(blob); await w.close();
+                  }
+                },
+                path
+              );
+            } else if (entry.kind === 'directory'){
+              await walk(entry, path);
+            }
+          }
+        }
+
+        await walk(handle);
+        showToast('🎉 全部处理完成（文件夹模式）');
+      }catch(e){
+        console.error(e);
+        showToast('处理出错：' + e.message);
+      }
+    }
+
+    // 文件模式（打包 ZIP 下载）
+    async function handleFilesToZip(files){
+      zip.files = {}; // 重置ZIP
+      resetLog();     // 清空上次日志（满足需求#2）
+      let any = false;
+      for (const file of files){
+        const displayName = file.name;
+        await processFileLike(
+          async () => ({ file, name: file.name }),
+          async (blob, suggestedName) => {
+            any = true;
+            const newName = suggestedName || (removeParamCheckbox.checked ? getCleanFileName(file.name) : file.name);
+            const arrayBuffer = await blob.arrayBuffer();
+            zip.file(newName, arrayBuffer, {date: new Date()});
+          },
+          displayName
+        );
+      }
+      if (any){
+        const now = new Date();
+        const zipName = `compressed_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}-${String(now.getMinutes()).padStart(2,'0')}-${String(now.getSeconds()).padStart(2,'0')}.zip`;
+        createZipAndDownload(zipName);
+        showToast('🎉 全部处理完成（已生成 ZIP）');
+      } else {
+        showToast('未处理任何文件');
+      }
+    }
+
+    // 拖拽交互（单文件夹或多个文件）
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', async e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+
+      const items = e.dataTransfer.items;
+      const files = e.dataTransfer.files;
+
+      // 单文件夹拖入（新API）
+      if (items && items.length === 1){
+        const item = items[0];
+        if (item.getAsFileSystemHandle){
+          try{
+            const handle = await item.getAsFileSystemHandle();
+            if (handle && handle.kind === 'directory'){
+              await chooseAndProcessDirectory(handle);
+              return;
+            }
+          }catch(err){}
+        }
+        // 旧 webkit API（只读，转ZIP）
+        if (item.webkitGetAsEntry){
+          const entry = item.webkitGetAsEntry();
+          if (entry && entry.isDirectory){
+            showToast('检测到文件夹，但无写入权限，将读取后打包为 ZIP 下载');
+            const dirFiles = [];
+            async function readDir(dir){
+              const reader = dir.createReader();
+              await new Promise(res => reader.readEntries(async entries => {
+                for (const en of entries){
+                  if (en.isFile){
+                    await new Promise(r => en.file(f => { dirFiles.push(f); r(); }));
+                  } else if (en.isDirectory){
+                    await readDir(en);
+                  }
+                }
+                res();
+              }));
+            }
+            await readDir(entry);
+            await handleFilesToZip(dirFiles);
+            return;
+          }
+        }
+      }
+
+      // 多文件或非文件夹
+      if (files && files.length) {
+        await handleFilesToZip(Array.from(files));
+      }
+    });
+
+    // 点击选择文件（ZIP 模式）
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) handleFilesToZip(Array.from(fileInput.files));
+    });
+
+    // 选择目录（覆盖保存模式）
+    chooseDirBtn.addEventListener('click', async () => { await chooseAndProcessDirectory(null); });
+
+    // 主题切换 & 记忆
+    themeToggle.addEventListener('click', () => {
+      const html = document.documentElement;
+      html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme', html.dataset.theme);
+    });
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+    else if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+
+    // 简单版本缓存清理
+    const savedVersion = localStorage.getItem('appVersion');
+    if (savedVersion !== APP_VERSION){
+      if ('caches' in window){ caches.keys().then(names => names.forEach(n => caches.delete(n))); }
+      localStorage.setItem('appVersion', APP_VERSION);
+    }
+
+    // ==== 预览交互：hover 小图 + click 大图 ====
+    function showPreviewAt(x, y, url){
+      imgPreviewImg.src = url;
+      const pad = 12;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const boxW = 200, boxH = 200;
+      let left = x + 16, top = y + 16;
+      if (left + boxW + pad > vw) left = x - boxW - 16;
+      if (top + boxH + pad > vh) top = y - boxH - 16;
+      imgPreview.style.transform = `translate(${left}px, ${top}px)`;
+    }
+    function hidePreview(){
+      imgPreview.style.transform = 'translate(-9999px, -9999px)';
+      imgPreviewImg.removeAttribute('src');
+    }
+
+    logBody.addEventListener('mousemove', (e)=>{
+      const a = e.target.closest('.file-link');
+      if (!a) return;
+      showPreviewAt(e.clientX, e.clientY, a.dataset.url);
+    });
+    logBody.addEventListener('mouseleave', hidePreview);
+    logBody.addEventListener('mouseover', (e)=>{
+      const a = e.target.closest('.file-link');
+      if (a) showPreviewAt(e.clientX, e.clientY, a.dataset.url);
+    });
+    logBody.addEventListener('mouseout', (e)=>{
+      const a = e.target.closest('.file-link');
+      if (a) hidePreview();
+    });
+    logBody.addEventListener('click', (e)=>{
+      const a = e.target.closest('.file-link');
+      if (!a) return;
+      e.preventDefault();
+      imgModalImg.src = a.dataset.url;
+      imgModalName.textContent = a.dataset.name || '';
+      imgModal.classList.add('show');
+    });
+    imgModalClose.addEventListener('click', ()=> imgModal.classList.remove('show'));
+    imgModal.addEventListener('click', (e)=>{ if (e.target === imgModal) imgModal.classList.remove('show'); });
+    window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') imgModal.classList.remove('show'); });
+  </script>
+
+  <!-- 统计脚本（可选） -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-VZ52ZP6XCX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-VZ52ZP6XCX');
+  </script>
+  <script>
+    var _hmt = _hmt || [];
+    (function(){ var hm = document.createElement('script'); hm.src = 'https://hm.baidu.com/hm.js?ed5dc7380b880499808494b9cf6f0f48'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(hm, s); })();
+  </script>
+
+  <!-- 自定义确认弹窗 -->
+  <div id="modalOverlay" class="modal-overlay">
+    <div class="modal-content">
+      <p id="modalText"></p>
+      <div class="modal-buttons">
+        <button id="modalCancelBtn" class="btn primary">取消</button>
+        <button id="modalConfirmBtn" class="btn warning">继续处理</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
