@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>图片拼接工具</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <button id="theme-toggle">🌙</button>
+  <div class="container">
+    <div class="panel">
+      <h1>批量拼接图片</h1>
+      <p>将多张图片拼接成一张长图，支持自动换行与纵向自适应缩放。</p>
+      <div class="flex-row" style="margin-bottom:12px;">
+        <div class="flex-center">
+          <input id="file" type="file" accept="image/*" multiple hidden />
+          <button class="btn btn-primary" id="pick">选择图片</button>
+          <button class="btn btn-default" id="clear">清空结果</button>
+        </div>
+        <span class="hint">拼接间距固定 15px。</span>
+      </div>
+      <div class="drop" id="drop">
+        将图片拖到这里，或点击上方按钮选择文件。
+      </div>
+      <div id="status" class="progress"></div>
+      <div id="out"></div>
+    </div>
+  </div>
+<script src="./main.js"></script>
+</body>
+</html>
