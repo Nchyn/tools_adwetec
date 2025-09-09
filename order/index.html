@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CSV 图片信息卡片生成器</title>
+  <style>
+:root {
+  --bg: #0b0f15;
+  --fg: #e8eef7;
+  --muted: #91a0b6;
+  --card: #121825;
+  --accent: #49a6ff;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .25);
+  --btn-radius: 12px; /* 统一圆角 */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #0b0f15, #0f1420);
+  color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+
+.container {
+  max-width: 1440px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font-size: 22px;
+  margin: 0;
+  font-weight: 750;
+  letter-spacing: .2px;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn {
+  appearance: none;
+  border: 0;
+  border-radius: var(--btn-radius); /* 使用统一的圆角 */
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #001;
+  cursor: pointer;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  transition: background 0.3s, transform 0.2s, box-shadow 0.2s; /* 添加过渡效果 */
+}
+
+.btn:hover {
+  background: #3885c8; /* 鼠标悬停时按钮背景色变为更深的蓝色 */
+  transform: translateY(-2px); /* 添加悬停时的上升效果 */
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35); /* 增强阴影效果 */
+}
+
+.btn.secondary {
+  background: #1d2738;
+  color: var(--fg);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid #22304a;
+  border-radius: var(--btn-radius); /* 统一圆角 */
+  background: #0f1726;
+  color: var(--fg);
+  padding: 12px 14px;
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(73, 166, 255, .08);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid #1b2436;
+  border-radius: var(--btn-radius); /* 统一圆角 */
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+}
+
+.thumb {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  background: #0a0f18;
+}
+
+.body {
+  padding: 12px 12px 14px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.stat {
+  background: #0f1726;
+  border: 1px solid #212c45;
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.id {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 10px;
+  word-break: break-all;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+.file-label {
+  border: 1px dashed #33415f;
+  border-radius: 4px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--fg);
+  background: #11182a;
+}
+
+.top-hr {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #20304d, transparent);
+  margin: 12px 0;
+}
+
+.empty {
+  border: 1px dashed #2b3a57;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.footer {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.switch input {
+  accent-color: var(--accent);
+}
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CSV 图片信息卡片生成器</h1>
+      <div class="bar">
+        <button id="renderBtn" class="btn">渲染示例数据</button>
+        <label class="file-label" for="fileInput">选择 CSV 文件</label>
+        <input id="fileInput" type="file" accept=".csv,text/csv" />
+      </div>
+    </header>
+
+    <div class="hint">支持逗号或制表符（Tab）分隔；需包含列：<strong>图片URL / 图片ID / 展现 / 点击 / 消费 / 点击率</strong>（顺序不严格）。</div>
+
+    <div class="top-hr"></div>
+
+    <textarea id="csvInput" placeholder="在此粘贴 CSV 内容或点击上方选择文件">
+图片URL	图片ID	展现	点击	消费	点击率	平均点击价格
+https://feed-image.baidu.com/0/pic/-692297455_897656349_1620457166.jpg	12658019099	90299	2943	4353.63	3.26%	1.48
+https://feed-image.baidu.com/0/pic/-734365233_870685342_2040281049.jpg	12658019098	43735	2058	2608.83	4.71%	1.27
+https://feed-image.baidu.com/0/pic/-225443608_-1984532699_-1613327581.jpg	12658019100	56383	1637	2419.93	2.90%	1.48
+    </textarea>
+
+    <div class="footer">
+      <div class="controls">
+        <button id="parseBtn" class="btn secondary">解析并生成卡片</button>
+      </div>
+      <label class="switch"><input type="checkbox" id="openNewTab" checked> 图片在新标签页打开</label>
+    </div>
+
+    <div id="grid" class="grid" aria-live="polite"></div>
+
+    <div id="empty" class="empty" style="display:none">未检测到有效数据，请粘贴 CSV 或选择文件，再点击“解析并生成卡片”。</div>
+  </div>
+
+  <script>
+    const q = sel => document.querySelector(sel);
+    const grid = q('#grid');
+    const empty = q('#empty');
+    const csvInput = q('#csvInput');
+    const openNewTab = q('#openNewTab');
+
+    // 尝试智能分隔（逗号或制表符）
+    function smartSplit(line){
+      if(!line) return [];
+      // 优先考虑制表符
+      if(line.includes('\t')) return line.split('\t');
+      // 其次逗号（简单处理引号）
+      const parts=[]; let cur=''; let inQ=false;
+      for(let i=0;i<line.length;i++){
+        const ch=line[i];
+        if(ch==='"') { inQ=!inQ; continue; }
+        if(ch===',' && !inQ){ parts.push(cur); cur=''; }
+        else cur+=ch;
+      }
+      parts.push(cur);
+      return parts;
+    }
+
+    function parseCSV(text){
+      if(!text) return [];
+      const rows = text.trim().split(/\r?\n/).map(s=>s.replace(/\s+$/,''));
+      if(rows.length===0) return [];
+      const header = smartSplit(rows[0]).map(h=>h.trim());
+      const idx = {
+        url: header.findIndex(h=>/url|图片url|链接/i.test(h)),
+        id: header.findIndex(h=>/id|图片id/i.test(h)),
+        imp: header.findIndex(h=>/展现|曝光|impressions?/i.test(h)),
+        clk: header.findIndex(h=>/点击|clicks?/i.test(h)),
+        cost: header.findIndex(h=>/消费|花费|cost/i.test(h)),
+        ctr: header.findIndex(h=>/点击率|ctr/i.test(h)),
+      };
+      const need = ['url','id','imp','clk','cost','ctr'];
+      if(need.some(k=>idx[k]===-1)){
+        throw new Error('缺少必要列：图片URL / 图片ID / 展现 / 点击 / 消费 / 点击率');
+      }
+      const data=[];
+      for(let r=1;r<rows.length;r++){
+        if(!rows[r].trim()) continue;
+        const cols = smartSplit(rows[r]).map(c=>c.trim());
+        data.push({
+          url: cols[idx.url] || '',
+          id: cols[idx.id] || '',
+          imp: cols[idx.imp] || '',
+          clk: cols[idx.clk] || '',
+          cost: cols[idx.cost] || '',
+          ctr: cols[idx.ctr] || '',
+        });
+      }
+      return data;
+    }
+
+    function numFormat(n){
+      if(n==null || n==='') return '';
+      const x = Number(String(n).replace(/,/g,''));
+      if(Number.isNaN(x)) return n;
+      return x.toLocaleString();
+    }
+
+    function render(data){
+      grid.innerHTML='';
+      if(!data || data.length===0){ empty.style.display='block'; return; }
+      empty.style.display='none';
+      const frag = document.createDocumentFragment();
+      data.forEach(item=>{
+        const card = document.createElement('article');
+        card.className = 'card';
+
+        const img = document.createElement('img');
+        img.className = 'thumb';
+        img.loading = 'lazy';
+        img.alt = '广告图片';
+        img.src = item.url;
+        img.onerror = ()=>{ img.src='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="100%" height="100%" fill="#0a0f18"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#7a8aa5" font-family="system-ui" font-size="20">图片加载失败</text></svg>`)};
+        if(openNewTab.checked){
+          const link = document.createElement('a');
+          link.href = item.url; link.target = '_blank'; link.rel='noopener';
+          link.appendChild(img); card.appendChild(link);
+        } else { card.appendChild(img); }
+
+        const body = document.createElement('div');
+        body.className = 'body';
+
+        const row1 = document.createElement('div');
+        row1.className = 'row';
+        row1.innerHTML = `
+          <div class="stat"><span class="label">展现</span><span class="value">${numFormat(item.imp)}</span></div>
+          <div class="stat"><span class="label">点击</span><span class="value">${numFormat(item.clk)}</span></div>
+        `;
+
+        const row2 = document.createElement('div');
+        row2.className = 'row';
+        row2.innerHTML = `
+          <div class="stat"><span class="label">消费</span><span class="value">${numFormat(item.cost)}</span></div>
+          <div class="stat"><span class="label">点击率</span><span class="value">${String(item.ctr).includes('%')?item.ctr:(item.ctr?item.ctr+'%':'')}</span></div>
+        `;
+
+        const id = document.createElement('div');
+        id.className = 'id';
+        id.textContent = `图片ID：${item.id}`;
+
+        body.appendChild(row1);
+        body.appendChild(row2);
+        body.appendChild(id);
+        card.appendChild(body);
+
+        frag.appendChild(card);
+      });
+      grid.appendChild(frag);
+    }
+
+    // 解析按钮
+    q('#parseBtn').addEventListener('click', ()=>{
+      try{
+        const data = parseCSV(csvInput.value);
+        render(data);
+      }catch(err){
+        alert(err.message || err);
+      }
+    });
+
+    // 示例渲染
+    q('#renderBtn').addEventListener('click', ()=>{
+      try{ render(parseCSV(csvInput.value)); }catch(err){ alert(err.message || err); }
+    });
+
+    // 文件选择
+    q('#fileInput').addEventListener('change', (e)=>{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { csvInput.value = String(reader.result || ''); };
+      reader.readAsText(file, 'utf-8');
+    });
+
+    // 初次自动渲染示例
+    window.addEventListener('DOMContentLoaded', ()=>{
+      try{ render(parseCSV(csvInput.value)); }catch{}
+    });
+  </script>
+</body>
+</html>
